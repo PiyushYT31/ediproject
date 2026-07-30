@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Base profile for all users (consumers, workers, vendors, artisans)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique identifier for the user" },
+        "displayName": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "role": { "type": "string", "enum": ["consumer", "worker", "vendor", "artisan"], "description": "User role" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "state": { "type": "string" },
+            "city": { "type": "string" },
+            "address": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      }
+    },
+    "WorkerProfile": {
+      "title": "Worker Profile",
+      "properties": {
+        "category": { "type": "string" },
+        "basePrice": { "type": "number" },
+        "bio": { "type": "string" },
+        "rating": { "type": "number" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "state": { "type": "string" },
+            "city": { "type": "string" }
+          }
+        }
+      }
+    },
+    "HardwareVendor": {
+      "title": "Hardware Vendor",
+      "properties": {
+        "shopName": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "state": { "type": "string" },
+            "city": { "type": "string" }
+          }
+        }
+      }
+    },
+    "ArtisanProfile": {
+      "title": "Artisan Profile",
+      "properties": {
+        "specialty": { "type": "string" },
+        "artisanBio": { "type": "string" },
+        "rating": { "type": "number" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "state": { "type": "string" },
+            "city": { "type": "string" }
+          }
+        }
+      }
+    },
+    "Product": {
+      "title": "Product",
+      "properties": {
+        "id": { "type": "string" },
+        "artisanId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "properties": {
+        "id": { "type": "string" },
+        "consumerId": { "type": "string" },
+        "artisanId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "shipped", "delivered", "cancelled"] },
+        "totalPrice": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "UserProfile" },
+    "/workers/{uid}": { "schema": "WorkerProfile" },
+    "/vendors/{uid}": { "schema": "HardwareVendor" },
+    "/artisans/{uid}": { "schema": "ArtisanProfile" },
+    "/products/{pid}": { "schema": "Product" },
+    "/orders/{oid}": { "schema": "Order" },
+    "/jobs/{jid}": { "schema": "JobRequest" }
+  }
+}

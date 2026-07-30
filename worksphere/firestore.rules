@@ -1,0 +1,239 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{uid}
+    // Document ID: uid (Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - displayName: string (required, minLen 2, maxLen 50)
+    //   - email: string (optional, email format)
+    //   - phoneNumber: string (optional)
+    //   - role: string (required, enum: ["consumer", "worker", "vendor"])
+    //   - photoURL: string (optional, uri format)
+    //   - location: map (optional)
+    //   - createdAt: number (required, immutable)
+    //
+    // Collection: /workers/{uid}
+    // Document ID: uid (Firebase Auth UID)
+    // Fields:
+    //   - category: string (required, enum: ["Plumber", "Mason", "Electrician", "Carpenter", "Painter", "Welder", "Gardener", "Mechanic"])
+    //   - rating: number (required, range 0-5)
+    //   - totalJobs: integer (required, positive)
+    //   - completionRate: number (required, range 0-1)
+    //   - basePrice: number (required, positive)
+    //   - bio: string (required, maxLen 500)
+    //   - isAvailable: boolean (required)
+    //
+    // Collection: /jobs/{jobId}
+    // Document ID: jobId (unique string)
+    // Fields:
+    //   - id: string (required, immutable)
+    //   - consumerId: string (required, immutable)
+    //   - workerId: string (required, immutable)
+    //   - status: string (required, enum: ["pending", "accepted", "in_progress", "completed", "cancelled"])
+    //   - category: string (required)
+    //   - description: string (required, maxLen 1000)
+    //   - location: map (required)
+    //   - quotedPrice: number (optional, positive)
+    //   - createdAt: number (required, immutable)
+    //   - updatedAt: number (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "siddharthsmohite911@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'displayName', 'role', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 50 &&
+             data.role in ['consumer', 'worker', 'vendor', 'artisan'] &&
+             data.createdAt is number &&
+             (!('email' in data) || isValidEmail(data.email)) &&
+             (!('photoURL' in data) || isValidUrl(data.photoURL));
+    }
+
+    function isValidArtisan(data) {
+      return hasRequiredFields(['specialty', 'artisanBio', 'rating', 'location']) &&
+             data.specialty is string &&
+             data.artisanBio is string &&
+             data.rating is number &&
+             data.location is map;
+    }
+
+    function isValidProduct(data) {
+      return hasRequiredFields(['id', 'artisanId', 'title', 'price', 'stock', 'category', 'createdAt']) &&
+             data.id is string &&
+             data.artisanId == request.auth.uid &&
+             data.title is string &&
+             data.price is number && data.price >= 0 &&
+             data.stock is int && data.stock >= 0 &&
+             data.category is string &&
+             data.createdAt is number;
+    }
+
+    function isValidOrder(data) {
+      return hasRequiredFields(['id', 'consumerId', 'artisanId', 'productId', 'quantity', 'totalPrice', 'status', 'createdAt']) &&
+             data.id is string &&
+             data.consumerId == request.auth.uid &&
+             data.artisanId is string &&
+             data.productId is string &&
+             data.quantity is int && data.quantity > 0 &&
+             data.totalPrice is number && data.totalPrice >= 0 &&
+             data.status in ["pending", "confirmed", "shipped", "delivered", "cancelled"] &&
+             data.createdAt is number;
+    }
+
+    function isValidWorker(data) {
+      return hasRequiredFields(['category', 'rating', 'totalJobs', 'completionRate', 'basePrice', 'isAvailable']) &&
+             data.category in ["Plumber", "Mason", "Electrician", "Carpenter", "Painter", "Welder", "Gardener", "Mechanic"] &&
+             data.rating is number && data.rating >= 0 && data.rating <= 5 &&
+             data.totalJobs is int && data.totalJobs >= 0 &&
+             data.completionRate is number && data.completionRate >= 0 && data.completionRate <= 1 &&
+             data.basePrice is number && data.basePrice >= 0 &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
+             data.isAvailable is bool;
+    }
+
+    function isValidJob(data) {
+      return hasRequiredFields(['id', 'consumerId', 'workerId', 'status', 'category', 'description', 'location', 'createdAt', 'updatedAt']) &&
+             data.id is string &&
+             data.consumerId is string &&
+             data.workerId is string &&
+             data.status in ["pending", "accepted", "in_progress", "completed", "cancelled"] &&
+             data.category is string &&
+             data.description is string && data.description.size() <= 1000 &&
+             data.location is map &&
+             data.createdAt is number &&
+             data.updatedAt is number &&
+             (!('quotedPrice' in data) || (data.quotedPrice is number && data.quotedPrice >= 0));
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    function isConsumer() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'consumer';
+    }
+
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && isValidUser(request.resource.data);
+      allow update: if isOwner(uid) && isValidUser(request.resource.data) &&
+                      request.resource.data.uid == resource.data.uid &&
+                      request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAdmin();
+    }
+
+    match /artisans/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && isValidArtisan(request.resource.data);
+      allow update: if isOwner(uid) && isValidArtisan(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /products/{pid} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidProduct(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.artisanId == request.auth.uid && isValidProduct(request.resource.data);
+      allow delete: if isAuthenticated() && resource.data.artisanId == request.auth.uid;
+    }
+
+    match /orders/{oid} {
+      allow read: if isAuthenticated() && (resource.data.consumerId == request.auth.uid || resource.data.artisanId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.consumerId == request.auth.uid || resource.data.artisanId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /workers/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && isValidWorker(request.resource.data);
+      allow update: if isOwner(uid) && isValidWorker(request.resource.data);
+      allow delete: if isAdmin();
+
+      match /reviews/{reviewId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && 
+                        request.resource.data.reviewerId == request.auth.uid &&
+                        request.resource.data.workerId == uid;
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /jobs/{jobId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.consumerId || 
+        request.auth.uid == resource.data.workerId || 
+        isAdmin()
+      );
+      allow create: if isConsumer() && 
+                      isValidJob(request.resource.data) && 
+                      request.auth.uid == request.resource.data.consumerId &&
+                      request.auth.uid != request.resource.data.workerId;
+      allow update: if isAuthenticated() && isValidJob(request.resource.data) &&
+                      (request.auth.uid == resource.data.consumerId || request.auth.uid == resource.data.workerId || isAdmin()) &&
+                      request.resource.data.id == resource.data.id &&
+                      request.resource.data.consumerId == resource.data.consumerId &&
+                      request.resource.data.workerId == resource.data.workerId &&
+                      request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAdmin();
+    }
+
+    match /inventory/{itemId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.vendorId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.vendorId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.vendorId == request.auth.uid;
+    }
+
+    match /vendors/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if isAdmin();
+    }
+  }
+}

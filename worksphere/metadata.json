@@ -1,0 +1,7 @@
+{
+  "name": "WorkSphere",
+  "description": "A hyperlocal digital marketplace connecting daily wage workers, consumers, and hardware vendors with AI-driven fair matching.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
