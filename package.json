@@ -1,0 +1,11 @@
+{
+  "name": "worksphere",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix worksphere",
+    "build": "npm run build --prefix worksphere",
+    "preview": "npm run preview --prefix worksphere",
+    "install:all": "cd worksphere && npm install"
+  }
+}

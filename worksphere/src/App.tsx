@@ -3,19 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Layout from "./components/Layout";
 import CategoryGrid from "./components/CategoryGrid";
 import WorkerCard from "./components/WorkerCard";
 import WorkerDetails from "./components/WorkerDetails";
 import JobCard from "./components/JobCard";
 import VendorPortal from "./components/VendorPortal";
-import WorkerRegistration from "./components/WorkerRegistration";
-import VendorRegistration from "./components/VendorRegistration";
-import ArtisanRegistration from "./components/ArtisanRegistration";
+import WorkerProfileSetup from "./components/WorkerProfileSetup";
+import ShopkeeperProfileSetup from "./components/ShopkeeperProfileSetup";
+import ArtisanProfileSetup from "./components/ArtisanProfileSetup";
+import RegistrationScreen from "./components/RegistrationScreen";
 import ArtisanCatalog from "./components/ArtisanCatalog";
 import ArtisanPortal from "./components/ArtisanPortal";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ProfileImageUploader from "./components/ProfileImageUploader";
+import AccountSettings from "./components/AccountSettings";
+import WorkerMapView from "./components/WorkerMapView";
 import { WorkerProfile, UserRole, JobRequest, JobStatus, UserProfile } from "./types";
 import { Search, SlidersHorizontal, Map as MapIcon, List, User, ChevronLeft, ChevronRight, LogIn, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -24,10 +28,11 @@ import { rankWorkers } from "./lib/recommendation";
 import { filterByRadius } from "./lib/geofencing";
 import { processVoiceCommand } from "./lib/voice";
 import { Mic, MicOff } from "lucide-react";
+import { seedAllData, clearAllData } from "./scripts/seedData";
 
 // Firebase Imports
 import { auth, db, handleFirestoreError, OperationType } from "./firebase";
-import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider, signOut, deleteUser } from "firebase/auth";
 import { 
   collection, 
   query, 
@@ -39,7 +44,10 @@ import {
   setDoc,
   getDoc,
   updateDoc,
-  or
+  deleteDoc,
+  getDocs,
+  or,
+  limit
 } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useCollection, useDocumentData } from "react-firebase-hooks/firestore";
@@ -73,19 +81,23 @@ export default function App() {
 function WorkSphereApp() {
   const { t } = useI18n();
   const [user, loading, error] = useAuthState(auth);
-  const [hasSelectedLanguage, setHasSelectedLanguage] = useState(() => {
-    return !!localStorage.getItem('work_sphere_lang_selected');
-  });
+  // Always show language selector on every app open (session-based)
+  const [hasSelectedLanguage, setHasSelectedLanguage] = useState(false);
+  const seedRanOnce = useRef(false);
   const [activeTab, setActiveTab] = useState("explore");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
+  const [nearbyViewMode, setNearbyViewMode] = useState<"list" | "map">("list");
   const [selectedWorker, setSelectedWorker] = useState<WorkerProfile | null>(null);
   const [portalView, setPortalView] = useState<"profile" | "vendor" | "artisan">("profile");
   const [jobsView, setJobsView] = useState<"bookings" | "assignments">("bookings");
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [isRegisteringVendor, setIsRegisteringVendor] = useState(false);
-  const [isRegisteringArtisan, setIsRegisteringArtisan] = useState(false);
+  
+  // Registration Flow State
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [profileSetupRole, setProfileSetupRole] = useState<UserRole | null>(null);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  
   const [isListening, setIsListening] = useState(false);
   const [userLocation, setUserLocation] = useState({ latitude: 19.0760, longitude: 72.8777 }); // Default to Mumbai
 
@@ -109,32 +121,42 @@ function WorkSphereApp() {
     user ? doc(db, "users", user.uid) : null
   );
 
-  // Sync user profile to Firestore on login
+  // Sync user profile to Firestore on login and manage flow
   useEffect(() => {
-    if (user) {
-      const syncProfile = async () => {
+    if (user && hasSelectedLanguage && !showProfileSetup) {
+      const checkProfile = async () => {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
         
-        if (!userSnap.exists()) {
-          const profile: any = {
-            uid: user.uid,
-            displayName: user.displayName || "Anonymous",
-            role: UserRole.CONSUMER,
-            createdAt: Date.now(),
-          };
-          if (user.email) profile.email = user.email;
-          if (user.photoURL) profile.photoURL = user.photoURL;
-          try {
-            await setDoc(userRef, profile);
-          } catch (err) {
-            handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          const role = data.role || UserRole.CONSUMER;
+          if (role !== UserRole.CONSUMER && !data.profileSetupComplete) {
+            setProfileSetupRole(role);
+            setShowProfileSetup(true);
           }
         }
       };
-      syncProfile();
+      checkProfile();
     }
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, hasSelectedLanguage]);
+
+  // Auto-seed data on first load
+  useEffect(() => {
+    if (!hasSelectedLanguage || seedRanOnce.current) return;
+    const autoSeed = async () => {
+      try {
+        seedRanOnce.current = true;
+        await clearAllData();
+        await seedAllData();
+      } catch (e) {
+        console.warn("Auto-seed check failed:", e);
+      }
+    };
+    autoSeed();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSelectedLanguage]);
 
   const workers = workersValue?.docs.map(doc => ({ uid: doc.id, ...doc.data() } as WorkerProfile)) || [];
   const jobs = jobsValue?.docs.map(doc => ({ id: doc.id, ...doc.data() } as JobRequest)) || [];
@@ -175,6 +197,33 @@ function WorkSphereApp() {
   const handleSignOut = () => {
     signOut(auth);
     setPortalView("profile");
+    // Re-show language selector on next open
+    setHasSelectedLanguage(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const confirmed = window.confirm(t('deleteAccountConfirm'));
+    if (!confirmed) return;
+
+    try {
+      // Delete from all Firestore collections
+      const collections = ["users", "workers", "vendors", "artisans"];
+      await Promise.allSettled(
+        collections.map(col => deleteDoc(doc(db, col, user.uid)))
+      );
+      // Delete Firebase Auth account
+      await deleteUser(user);
+      setPortalView("profile");
+      setHasSelectedLanguage(false);
+    } catch (err: any) {
+      if (err.code === "auth/requires-recent-login") {
+        alert("For security, please sign out and sign back in before deleting your account.");
+      } else {
+        alert("Failed to delete account. Please try again.");
+        console.error(err);
+      }
+    }
   };
 
   const handleSwitchToConsumer = async () => {
@@ -231,13 +280,17 @@ function WorkSphereApp() {
   };
 
   const handleLanguageComplete = () => {
-    localStorage.setItem('work_sphere_lang_selected', 'true');
     setHasSelectedLanguage(true);
   };
 
-  if (!hasSelectedLanguage) {
-    return <LanguageSelector onComplete={handleLanguageComplete} />;
-  }
+  const handleRegistrationComplete = (needsProfileSetup: boolean, role: UserRole) => {
+    if (needsProfileSetup) {
+      setProfileSetupRole(role);
+      setShowProfileSetup(true);
+    } else {
+      setActiveTab("explore");
+    }
+  };
 
   if (loading) {
     return (
@@ -250,6 +303,41 @@ function WorkSphereApp() {
       </div>
     );
   }
+
+  if (!hasSelectedLanguage) {
+    return <LanguageSelector onComplete={handleLanguageComplete} />;
+  }
+
+  if (!user) {
+    return <RegistrationScreen onComplete={handleRegistrationComplete} />;
+  }
+
+  if (showProfileSetup && profileSetupRole) {
+    const handleCloseSetup = () => {
+      setShowProfileSetup(false);
+      setProfileSetupRole(null);
+    };
+
+    if (profileSetupRole === UserRole.WORKER) {
+      return <WorkerProfileSetup onClose={handleCloseSetup} onSuccess={handleCloseSetup} />;
+    } else if (profileSetupRole === UserRole.VENDOR) {
+      return <ShopkeeperProfileSetup onClose={handleCloseSetup} onSuccess={() => {
+        setShowProfileSetup(false);
+        setProfileSetupRole(null);
+        setPortalView("vendor");
+        setActiveTab("profile");
+      }} />;
+    } else if (profileSetupRole === UserRole.ARTISAN) {
+      return <ArtisanProfileSetup onClose={handleCloseSetup} onSuccess={() => {
+        setShowProfileSetup(false);
+        setProfileSetupRole(null);
+        setPortalView("artisan");
+        setActiveTab("profile");
+      }} />;
+    }
+  }
+
+
 
   return (
     <Layout activeTab={activeTab} onTabChange={setActiveTab}>
@@ -359,13 +447,18 @@ function WorkSphereApp() {
                 <h2 className="text-2xl font-bold tracking-tight">{t('nearbyWorkers')}</h2>
                 <p className="text-xs font-bold text-[#141414]/40 uppercase tracking-widest mt-1">{t('withinRadius')}</p>
               </div>
-              <div className="w-10 h-10 bg-[#141414] text-white rounded-xl flex items-center justify-center">
-                <MapIcon className="w-6 h-6" />
-              </div>
+              <button 
+                onClick={() => setNearbyViewMode(nearbyViewMode === "list" ? "map" : "list")}
+                className="w-10 h-10 bg-[#141414] text-white rounded-xl flex items-center justify-center hover:bg-[#141414]/90 transition-all"
+              >
+                {nearbyViewMode === "list" ? <MapIcon className="w-5 h-5" /> : <List className="w-5 h-5" />}
+              </button>
             </div>
 
             <div className="space-y-3">
-              {nearbyWorkers.length > 0 ? (
+              {nearbyViewMode === "map" ? (
+                <WorkerMapView workers={nearbyWorkers} center={[userLocation.latitude, userLocation.longitude]} />
+              ) : nearbyWorkers.length > 0 ? (
                 nearbyWorkers.map((worker) => (
                   <WorkerCard 
                     key={worker.uid} 
@@ -425,17 +518,7 @@ function WorkSphereApp() {
               )}
             </div>
 
-            {!user ? (
-              <div className="bg-white rounded-2xl border border-[#141414]/10 p-12 text-center space-y-4">
-                <p className="font-bold text-lg">{t('signInToViewJobs')}</p>
-                <button 
-                  onClick={handleSignIn}
-                  className="bg-[#141414] text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 mx-auto"
-                >
-                  <LogIn className="w-4 h-4" /> {t('signIn')}
-                </button>
-              </div>
-            ) : jobsLoading ? (
+            {jobsLoading ? (
               <div className="text-center py-12">{t('loading')}</div>
             ) : (
               <div className="space-y-3">
@@ -495,69 +578,78 @@ function WorkSphereApp() {
           >
             {portalView === "profile" ? (
               <>
-                <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-[#141414]/10 shadow-sm">
-                  <div className="w-20 h-20 bg-[#141414]/5 rounded-2xl flex items-center justify-center overflow-hidden">
-                    {user?.photoURL ? (
-                      <img src={user.photoURL} alt={user.displayName || ""} className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-10 h-10 text-[#141414]/20" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold">{user?.displayName || t('guestUser')}</h3>
-                      {userProfile?.role === UserRole.WORKER && (
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                {/* Profile Card with Photo Upload for Consumer */}
+                <div className="bg-white p-6 rounded-3xl border border-[#141414]/10 shadow-sm space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex-shrink-0">
+                      {user ? (
+                        <ProfileImageUploader
+                          currentPhotoURL={userProfile?.photoURL || user.photoURL || undefined}
+                          size="sm"
+                          label=""
+                          onUpload={async (url) => {
+                            if (!user) return;
+                            try {
+                              await updateDoc(doc(db, "users", user.uid), { photoURL: url });
+                            } catch (e) { console.error(e); }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-20 h-20 bg-[#141414]/5 rounded-2xl flex items-center justify-center overflow-hidden">
+                          <User className="w-10 h-10 text-[#141414]/20" />
+                        </div>
                       )}
                     </div>
-                    <p className="text-[#141414]/60 text-sm">
-                      {user ? t(userProfile?.role || "consumer").toUpperCase() : t('signInPrompt')}
-                    </p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold">{user?.displayName || t('guestUser')}</h3>
+                        {userProfile?.role === UserRole.WORKER && (
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        )}
+                      </div>
+                      <p className="text-[#141414]/60 text-sm">
+                        {user ? t(userProfile?.role || "consumer").toUpperCase() : t('signInPrompt')}
+                      </p>
+                    </div>
                   </div>
-                  {!user && (
-                    <button 
-                      onClick={handleSignIn}
-                      className="p-3 bg-[#141414] text-white rounded-xl hover:scale-105 transition-transform"
-                    >
-                      <LogIn className="w-5 h-5" />
-                    </button>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3">
                   <ProfileOption label={t('changeLanguage')} onClick={() => setHasSelectedLanguage(false)} />
-                  <ProfileOption label={t('accountSettings')} />
+                  <ProfileOption label={t('accountSettings')} onClick={() => setShowAccountSettings(true)} />
                   <ProfileOption label={t('paymentMethods')} />
                   <ProfileOption label={t('helpSupport')} />
-                  {!user && (
-                    <ProfileOption 
-                      label={t('exitGuest')} 
-                      onClick={() => setActiveTab('explore')}
-                    />
-                  )}
                   {user && (
                     <>
-                      {userProfile?.role !== UserRole.WORKER ? (
-                        <ProfileOption 
-                          label={userProfile?.role === UserRole.CONSUMER ? t('becomeWorkerBtn') : t('switchToWorker')} 
-                          variant="accent" 
-                          onClick={() => setIsRegistering(true)}
-                        />
-                      ) : (
+                      {userProfile?.role === UserRole.CONSUMER && (
+                        <>
+                          <ProfileOption 
+                            label={t('becomeWorkerBtn')} 
+                            variant="accent" 
+                            onClick={() => { setProfileSetupRole(UserRole.WORKER); setShowProfileSetup(true); }}
+                          />
+                          <ProfileOption 
+                            label={t('becomeVendorBtn')} 
+                            variant="accent" 
+                            onClick={() => { setProfileSetupRole(UserRole.VENDOR); setShowProfileSetup(true); }}
+                          />
+                          <ProfileOption 
+                            label={t('becomeArtisanBtn')} 
+                            variant="accent" 
+                            onClick={() => { setProfileSetupRole(UserRole.ARTISAN); setShowProfileSetup(true); }}
+                          />
+                        </>
+                      )}
+
+                      {userProfile?.role === UserRole.WORKER && (
                         <ProfileOption 
                           label={t('workerPortalBtn')} 
                           variant="accent" 
                           onClick={() => setPortalView("profile")}
                         />
                       )}
-                      
-                      {userProfile?.role !== UserRole.VENDOR ? (
-                        <ProfileOption 
-                          label={userProfile?.role === UserRole.CONSUMER ? t('becomeVendorBtn') : t('switchToVendor')} 
-                          variant="accent" 
-                          onClick={() => setIsRegisteringVendor(true)}
-                        />
-                      ) : (
+
+                      {userProfile?.role === UserRole.VENDOR && (
                         <ProfileOption 
                           label={t('vendorPortalBtn')} 
                           variant="accent" 
@@ -565,13 +657,7 @@ function WorkSphereApp() {
                         />
                       )}
 
-                      {userProfile?.role !== UserRole.ARTISAN ? (
-                        <ProfileOption 
-                          label={userProfile?.role === UserRole.CONSUMER ? t('becomeArtisanBtn') : t('switchToArtisan')} 
-                          variant="accent" 
-                          onClick={() => setIsRegisteringArtisan(true)}
-                        />
-                      ) : (
+                      {userProfile?.role === UserRole.ARTISAN && (
                         <ProfileOption 
                           label={t('artisanPortalBtn')} 
                           variant="accent" 
@@ -590,6 +676,11 @@ function WorkSphereApp() {
                         label={t('signOut')} 
                         onClick={handleSignOut}
                         variant="default"
+                      />
+                      <ProfileOption 
+                        label={t('deleteAccount')} 
+                        onClick={handleDeleteAccount}
+                        variant="danger"
                       />
                     </>
                   )}
@@ -632,28 +723,14 @@ function WorkSphereApp() {
             userProfileRole={userProfile?.role}
           />
         )}
-        {isRegistering && (
-          <WorkerRegistration 
-            onClose={() => setIsRegistering(false)} 
-            onSuccess={() => setActiveTab("profile")}
-          />
-        )}
-        {isRegisteringVendor && (
-          <VendorRegistration 
-            onClose={() => setIsRegisteringVendor(false)} 
-            onSuccess={() => {
-              setActiveTab("profile");
-              setPortalView("vendor");
-            }}
-          />
-        )}
-        {isRegisteringArtisan && (
-          <ArtisanRegistration 
-            onClose={() => setIsRegisteringArtisan(false)} 
-            onSuccess={() => {
-              setActiveTab("profile");
-              setPortalView("artisan");
-            }}
+      </AnimatePresence>
+
+      {/* Account Settings overlay */}
+      <AnimatePresence>
+        {showAccountSettings && (
+          <AccountSettings
+            onClose={() => setShowAccountSettings(false)}
+            userProfile={userProfile}
           />
         )}
       </AnimatePresence>
@@ -667,7 +744,7 @@ function ProfileOption({
   onClick 
 }: { 
   label: string; 
-  variant?: "default" | "accent";
+  variant?: "default" | "accent" | "danger";
   onClick?: () => void;
 }) {
   return (
@@ -677,13 +754,15 @@ function ProfileOption({
         "w-full text-left px-6 py-4 rounded-2xl border transition-all font-bold text-sm flex items-center justify-between group",
         variant === "default" 
           ? "bg-white border-[#141414]/10 hover:border-[#141414]" 
-          : "bg-[#141414] text-white border-transparent hover:bg-[#141414]/90"
+          : variant === "accent"
+          ? "bg-[#141414] text-white border-transparent hover:bg-[#141414]/90"
+          : "bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-400"
       )}
     >
       <span>{label}</span>
       <ChevronRight className={cn(
         "w-4 h-4 transition-transform group-hover:translate-x-1",
-        variant === "default" ? "text-[#141414]/20" : "text-white/40"
+        variant === "default" ? "text-[#141414]/20" : variant === "accent" ? "text-white/40" : "text-red-400"
       )} />
     </button>
   );

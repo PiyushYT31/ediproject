@@ -3,49 +3,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: /users/{uid}
-    // Document ID: uid (Firebase Auth UID)
-    // Fields:
-    //   - uid: string (required, immutable)
-    //   - displayName: string (required, minLen 2, maxLen 50)
-    //   - email: string (optional, email format)
-    //   - phoneNumber: string (optional)
-    //   - role: string (required, enum: ["consumer", "worker", "vendor"])
-    //   - photoURL: string (optional, uri format)
-    //   - location: map (optional)
-    //   - createdAt: number (required, immutable)
-    //
-    // Collection: /workers/{uid}
-    // Document ID: uid (Firebase Auth UID)
-    // Fields:
-    //   - category: string (required, enum: ["Plumber", "Mason", "Electrician", "Carpenter", "Painter", "Welder", "Gardener", "Mechanic"])
-    //   - rating: number (required, range 0-5)
-    //   - totalJobs: integer (required, positive)
-    //   - completionRate: number (required, range 0-1)
-    //   - basePrice: number (required, positive)
-    //   - bio: string (required, maxLen 500)
-    //   - isAvailable: boolean (required)
-    //
-    // Collection: /jobs/{jobId}
-    // Document ID: jobId (unique string)
-    // Fields:
-    //   - id: string (required, immutable)
-    //   - consumerId: string (required, immutable)
-    //   - workerId: string (required, immutable)
-    //   - status: string (required, enum: ["pending", "accepted", "in_progress", "completed", "cancelled"])
-    //   - category: string (required)
-    //   - description: string (required, maxLen 1000)
-    //   - location: map (required)
-    //   - quotedPrice: number (optional, positive)
-    //   - createdAt: number (required, immutable)
-    //   - updatedAt: number (required)
-    //
-    // ===============================================================
-
-    // ===============================================================
     // Helper Functions
     // ===============================================================
     
@@ -75,10 +32,6 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(fields);
     }
 
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
     // ===============================================================
     // Domain Validators
     // ===============================================================
@@ -104,7 +57,7 @@ service cloud.firestore {
     function isValidProduct(data) {
       return hasRequiredFields(['id', 'artisanId', 'title', 'price', 'stock', 'category', 'createdAt']) &&
              data.id is string &&
-             data.artisanId == request.auth.uid &&
+             data.artisanId is string &&
              data.title is string &&
              data.price is number && data.price >= 0 &&
              data.stock is int && data.stock >= 0 &&
@@ -149,14 +102,14 @@ service cloud.firestore {
              (!('quotedPrice' in data) || (data.quotedPrice is number && data.quotedPrice >= 0));
     }
 
-    // ===============================================================
-    // Collection Rules
-    // ===============================================================
-
     function isConsumer() {
       return isAuthenticated() && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'consumer';
     }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
 
     match /users/{uid} {
       allow read: if isAuthenticated();
@@ -169,16 +122,18 @@ service cloud.firestore {
 
     match /artisans/{uid} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(uid) && isValidArtisan(request.resource.data);
-      allow update: if isOwner(uid) && isValidArtisan(request.resource.data);
+      // Allow any authenticated user to write artisan seed docs (for development seeding)
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /products/{pid} {
       allow read: if true;
+      // Allow any authenticated user to create products (for seeding)
       allow create: if isAuthenticated() && isValidProduct(request.resource.data);
-      allow update: if isAuthenticated() && resource.data.artisanId == request.auth.uid && isValidProduct(request.resource.data);
-      allow delete: if isAuthenticated() && resource.data.artisanId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.artisanId == request.auth.uid || isAdmin()) && isValidProduct(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.artisanId == request.auth.uid || isAdmin());
     }
 
     match /orders/{oid} {
@@ -189,9 +144,10 @@ service cloud.firestore {
     }
 
     match /workers/{uid} {
-      allow read: if isAuthenticated();
-      allow create: if isOwner(uid) && isValidWorker(request.resource.data);
-      allow update: if isOwner(uid) && isValidWorker(request.resource.data);
+      allow read: if true;
+      // Allow any authenticated user to write workers (for development seeding)
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
       allow delete: if isAdmin();
 
       match /reviews/{reviewId} {
@@ -224,15 +180,17 @@ service cloud.firestore {
 
     match /inventory/{itemId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.vendorId == request.auth.uid;
-      allow update: if isAuthenticated() && resource.data.vendorId == request.auth.uid;
-      allow delete: if isAuthenticated() && resource.data.vendorId == request.auth.uid;
+      // Allow any authenticated user to create inventory items (for seeding)
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (resource.data.vendorId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.vendorId == request.auth.uid || isAdmin());
     }
 
     match /vendors/{uid} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(uid);
-      allow update: if isOwner(uid);
+      // Allow any authenticated user to write vendor seed docs
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
       allow delete: if isAdmin();
     }
   }

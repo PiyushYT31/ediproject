@@ -53,7 +53,7 @@ export default function ArtisanCatalog() {
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder={t('searchPlaceholder')}
+            placeholder="Search for products…"
             className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-2xl focus:outline-none focus:border-white transition-all backdrop-blur-md"
           />
         </div>

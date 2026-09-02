@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { INDIAN_STATES } from '../data/indianGeography';
 import { useI18n } from '../lib/i18n';
 import { MapPin } from 'lucide-react';
+import GPSLocationPicker from './GPSLocationPicker';
 
 interface LocationPickerProps {
   onLocationChange: (state: string, city: string) => void;
@@ -13,27 +14,50 @@ export default function LocationPicker({ onLocationChange, initialState, initial
   const { t } = useI18n();
   const [selectedState, setSelectedState] = useState(initialState || '');
   const [selectedCity, setSelectedCity] = useState(initialCity || '');
+  const [useGPS, setUseGPS] = useState(true);
+
+  // Keep a ref to the latest callback to avoid stale closures / infinite loops
+  const onLocationChangeRef = useRef(onLocationChange);
+  useEffect(() => {
+    onLocationChangeRef.current = onLocationChange;
+  });
 
   const availableCities = INDIAN_STATES.find(s => s.name === selectedState)?.cities || [];
 
   useEffect(() => {
-    if (selectedState && selectedCity) {
-      onLocationChange(selectedState, selectedCity);
+    if (selectedState && selectedCity && !useGPS) {
+      onLocationChangeRef.current(selectedState, selectedCity);
     }
-  }, [selectedState, selectedCity, onLocationChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedState, selectedCity, useGPS]);
 
   const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedState(e.target.value);
-    setSelectedCity(''); // Reset city when state changes
+    setSelectedCity('');
   };
+
+  const handleGPSLocationFound = (loc: { lat: number, lng: number, address: string, state: string, city: string }) => {
+    onLocationChange(loc.state, loc.city);
+    // You could also pass lat/lng up if the parent wants it, but keeping it simple for now based on props
+  };
+
+  if (useGPS) {
+    return <GPSLocationPicker onLocationFound={handleGPSLocationFound} onFallback={() => setUseGPS(false)} />;
+  }
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
+      <div className="flex justify-between items-center">
         <label className="text-sm font-bold text-[#141414]/60 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
           {t('selectState')}
         </label>
+        <button onClick={() => setUseGPS(true)} className="text-xs font-bold text-[#141414] underline">
+          Use GPS instead
+        </button>
+      </div>
+      
+      <div className="space-y-2">
         <select
           value={selectedState}
           onChange={handleStateChange}

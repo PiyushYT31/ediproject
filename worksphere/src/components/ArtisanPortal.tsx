@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
@@ -9,11 +9,14 @@ import {
   TrendingUp,
   ShoppingBag,
   DollarSign,
-  Clock
+  Clock,
+  Upload,
+  Loader2
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { db, auth, storage, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, getDocs, doc, setDoc, deleteDoc, orderBy } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useCollection } from 'react-firebase-hooks/firestore';
 import { Product, Order, OrderStatus } from '../types';
 
@@ -195,6 +198,9 @@ function OrderListItem({ order }: { order: Order }) {
 
 function AddProductModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -204,9 +210,37 @@ function AddProductModal({ onClose }: { onClose: () => void }) {
     imageUrl: ''
   });
 
+  const MAX_PRODUCT_IMAGE_MB = 10;
+  const MAX_PRODUCT_IMAGE_BYTES = MAX_PRODUCT_IMAGE_MB * 1024 * 1024;
+
+  const handleImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !auth.currentUser) return;
+
+    if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
+      alert(`Image must be under ${MAX_PRODUCT_IMAGE_MB}MB. Your file: ${(file.size/1024/1024).toFixed(1)}MB`);
+      return;
+    }
+
+    setImagePreview(URL.createObjectURL(file));
+    setUploadingImage(true);
+    try {
+      const storageRef = ref(storage, `product-images/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setFormData(prev => ({ ...prev, imageUrl: url }));
+    } catch (err) {
+      alert('Image upload failed. Please try again.');
+      setImagePreview(null);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) return;
+    if (uploadingImage) { alert('Please wait for image to finish uploading.'); return; }
 
     const docRef = doc(collection(db, "products"));
     const productData: Product = {
@@ -275,19 +309,46 @@ function AddProductModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
+          {/* Image Upload */}
           <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase text-[#141414]/40 tracking-widest">Image URL</label>
+            <label className="text-[10px] font-bold uppercase text-[#141414]/40 tracking-widest">Product Image (up to 10MB)</label>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full h-40 border-2 border-dashed border-[#141414]/15 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-[#141414]/40 transition-colors relative overflow-hidden bg-[#141414]/3"
+            >
+              {imagePreview ? (
+                <img src={imagePreview} alt="preview" className="absolute inset-0 w-full h-full object-cover rounded-2xl" />
+              ) : (
+                <>
+                  <Upload className="w-6 h-6 text-[#141414]/30" />
+                  <p className="text-xs font-bold text-[#141414]/40">Tap to upload product photo</p>
+                  <p className="text-[10px] text-[#141414]/25">JPG, PNG, WEBP · Max 10MB</p>
+                </>
+              )}
+              {uploadingImage && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-2xl">
+                  <Loader2 className="w-8 h-8 text-[#141414] animate-spin" />
+                </div>
+              )}
+            </div>
             <input
-              value={formData.imageUrl}
-              onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
-              className="w-full px-4 py-3 bg-[#141414]/3 border-none rounded-xl focus:ring-2 ring-[#141414]"
-              placeholder="Paste a link to your product image"
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageFile}
+              className="hidden"
             />
           </div>
 
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="flex-1 py-4 font-bold text-[#141414]/40">{t('cancel')}</button>
-            <button type="submit" className="flex-[2] bg-[#141414] text-white py-4 rounded-2xl font-black italic tracking-tight">{t('addItem')}</button>
+            <button
+              type="submit"
+              disabled={uploadingImage}
+              className="flex-[2] bg-[#141414] text-white py-4 rounded-2xl font-black italic tracking-tight disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {uploadingImage ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</> : t('addItem')}
+            </button>
           </div>
         </form>
       </motion.div>

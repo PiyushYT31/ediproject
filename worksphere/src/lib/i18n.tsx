@@ -789,7 +789,162 @@ export const translations: Translations = {
     en: 'Your account role will be updated. You can switch back at any time.',
     hi: 'आपके खाते की भूमिका अपडेट कर दी जाएगी। आप किसी भी समय वापस स्विच कर सकते हैं।',
     mr: 'तुमच्या खात्याची भूमिका अपडेट केली जाईल. तुम्ही कधीही परत स्विच करू शकता.',
-  }
+  },
+  chooseLanguageTitle: {
+    en: 'Choose Your Language',
+    hi: 'अपनी भाषा चुनें',
+    mr: 'तुमची भाषा निवडा',
+  },
+  chooseLanguageSubtitle: {
+    en: 'Select your preferred language.',
+    hi: 'अपनी पसंदीदा भाषा का चयन करें।',
+    mr: 'तुमची आवडती भाषा निवडा.',
+  },
+  continue: {
+    en: 'Continue',
+    hi: 'जारी रखें',
+    mr: 'सुरू ठेवा',
+  },
+  skipDefaultEnglish: {
+    en: 'Skip (Default English)',
+    hi: 'छोड़ें (डिफ़ॉल्ट अंग्रेज़ी)',
+    mr: 'वगळा (डिफॉल्ट इंग्रजी)',
+  },
+  welcomeToWorksphere: {
+    en: 'Welcome to WorkSphere',
+    hi: 'WorkSphere में आपका स्वागत है',
+    mr: 'WorkSphere मध्ये आपले स्वागत आहे',
+  },
+  createAccountToContinue: {
+    en: 'Create an account to continue',
+    hi: 'जारी रखने के लिए खाता बनाएं',
+    mr: 'सुरू ठेवण्यासाठी खाते तयार करा',
+  },
+  signInToContinue: {
+    en: 'Sign in to continue',
+    hi: 'जारी रखने के लिए साइन इन करें',
+    mr: 'सुरू ठेवण्यासाठी साइन इन करा',
+  },
+  fullName: {
+    en: 'Full Name',
+    hi: 'पूरा नाम',
+    mr: 'पूर्ण नाव',
+  },
+  phoneNumber: {
+    en: 'Phone Number',
+    hi: 'फ़ोन नंबर',
+    mr: 'फोन नंबर',
+  },
+  emailAddress: {
+    en: 'Email Address',
+    hi: 'ईमेल पता',
+    mr: 'ईमेल पत्ता',
+  },
+  password: {
+    en: 'Password',
+    hi: 'पासवर्ड',
+    mr: 'पासवर्ड',
+  },
+  createPassword: {
+    en: 'Create Password',
+    hi: 'पासवर्ड बनाएं',
+    mr: 'पासवर्ड तयार करा',
+  },
+  confirmPassword: {
+    en: 'Confirm Password',
+    hi: 'पासवर्ड की पुष्टि करें',
+    mr: 'पासवर्डची पुष्टी करा',
+  },
+  selectYourRole: {
+    en: 'Select Your Role',
+    hi: 'अपनी भूमिका चुनें',
+    mr: 'तुमची भूमिका निवडा',
+  },
+  signInBtn: {
+    en: 'Sign In',
+    hi: 'साइन इन करें',
+    mr: 'साइन इन करा',
+  },
+  or: {
+    en: 'OR',
+    hi: 'या',
+    mr: 'किंवा',
+  },
+  dontHaveAccount: {
+    en: "Don't have an account?",
+    hi: 'खाता नहीं है?',
+    mr: 'खाते नाही?',
+  },
+  alreadyHaveAccount: {
+    en: 'Already have an account?',
+    hi: 'क्या आपके पास पहले से खाता है?',
+    mr: 'आधीपासूनच खाते आहे?',
+  },
+  registerNow: {
+    en: 'Register Now',
+    hi: 'अभी रजिस्टर करें',
+    mr: 'आता नोंदणी करा',
+  },
+  loginHere: {
+    en: 'Login Here',
+    hi: 'यहाँ लॉगिन करें',
+    mr: 'येथे लॉगिन करा',
+  },
+  customer: {
+    en: 'Customer',
+    hi: 'ग्राहक',
+    mr: 'ग्राहक',
+  },
+  shopkeeper: {
+    en: 'Shopkeeper',
+    hi: 'दुकानदार',
+    mr: 'दुकानदार',
+  },
+  roleDescCustomer: {
+    en: 'Hire workers & buy items',
+    hi: 'श्रमिकों को काम पर रखें और सामान खरीदें',
+    mr: 'कामगार नेमा आणि वस्तू खरेदी करा',
+  },
+  roleDescShopkeeper: {
+    en: 'Sell hardware & materials',
+    hi: 'हार्डवेयर और सामग्री बेचें',
+    mr: 'हार्डवेअर आणि साहित्य विका',
+  },
+  roleDescWorker: {
+    en: 'Offer your services',
+    hi: 'अपनी सेवाएं प्रदान करें',
+    mr: 'तुमच्या सेवा द्या',
+  },
+  roleDescArtisan: {
+    en: 'Sell handmade crafts',
+    hi: 'हस्तनिर्मित शिल्प बेचें',
+    mr: 'हस्तकला उत्पादने विका',
+  },
+  deleteAccount: {
+    en: 'Delete Account',
+    hi: 'खाता हटाएं',
+    mr: 'खाते हटवा',
+  },
+  deleteAccountConfirm: {
+    en: 'Are you sure you want to permanently delete your account? This action cannot be undone.',
+    hi: 'क्या आप सच में अपना खाता स्थायी रूप से हटाना चाहते हैं? यह क्रिया वापस नहीं की जा सकती।',
+    mr: 'तुम्हाला खरोखर तुमचे खाते कायमस्वरूपी हटवायचे आहे का? हे पूर्ववत करता येणार नाही.',
+  },
+  deleteAccountWarning: {
+    en: 'Delete My Account Permanently',
+    hi: 'मेरा खाता स्थायी रूप से हटाएं',
+    mr: 'माझे खाते कायमस्वरूपी हटवा',
+  },
+  uploadProfilePhoto: {
+    en: 'Upload Profile Photo',
+    hi: 'प्रोफ़ाइल फ़ोटो अपलोड करें',
+    mr: 'प्रोफाइल फोटो अपलोड करा',
+  },
+  changeProfilePhoto: {
+    en: 'Change Profile Photo',
+    hi: 'प्रोफ़ाइल फ़ोटो बदलें',
+    mr: 'प्रोफाइल फोटो बदला',
+  },
 };
 
 interface I18nContextType {

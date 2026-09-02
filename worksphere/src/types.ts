@@ -19,11 +19,29 @@ export interface UserProfile {
     state?: string;
     city?: string;
   };
+  profileSetupComplete?: boolean;
   createdAt: number;
 }
 
 export interface WorkerProfile extends UserProfile {
   category: string;
+  profession: string;
+  yearsOfExperience: number;
+  skills: string[];
+  languagesSpoken: string[];
+  serviceDescription: string;
+  hourlyFee: number;
+  dailyCharges: number;
+  emergencyCharges: number;
+  availableTiming: { from: string; to: string };
+  availableDays: string[];
+  maxTravelDistance: string;
+  isOnline: boolean;
+  portfolioUrls: string[];
+  videoUrls: string[];
+  aadhaarVerified: boolean;
+  skillCertificateUrl?: string;
+  whatsappNumber?: string;
   rating: number;
   totalJobs: number;
   completionRate: number;
@@ -33,9 +51,54 @@ export interface WorkerProfile extends UserProfile {
   reviewsCount?: number;
 }
 
+export interface ShopkeeperProfile extends UserProfile {
+  shopName: string;
+  ownerName: string;
+  shopCategory: string;
+  shopDescription: string;
+  shopAddress: string;
+  landmark: string;
+  pincode: string;
+  gstNumber?: string;
+  openingTime: string;
+  closingTime: string;
+  weeklyOff: string;
+  contactNumber: string;
+  whatsappNumber: string;
+  shopLogoUrl?: string;
+  shopPhotoUrls: string[];
+  homeDelivery: boolean;
+  pickupAvailable: boolean;
+  cashOnDelivery: boolean;
+  onlinePayment: boolean;
+  shopLicenseUrl?: string;
+  aadhaarVerified: boolean;
+  isPublished: boolean;
+  inventory: InventoryItem[];
+}
+
+// Keep backward compat alias
+export type HardwareVendor = ShopkeeperProfile;
+
 export interface ArtisanProfile extends UserProfile {
   artisanBio: string;
+  craftCategory: string;
   specialty: string;
+  yearsOfExperience: number;
+  handmadeProducts: string;
+  productDescription: string;
+  materialUsed: string;
+  customOrdersAvailable: boolean;
+  price: number;
+  stockAvailable: number;
+  productionTime: string;
+  deliveryAvailable: boolean;
+  shippingCharges: number;
+  workshopAddress: string;
+  workshopPhotoUrls: string[];
+  videoUrls: string[];
+  handicraftCertificateUrl?: string;
+  isPublished: boolean;
   rating: number;
   galleryUrls?: string[];
 }
@@ -80,11 +143,6 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: number;
-}
-
-export interface HardwareVendor extends UserProfile {
-  shopName: string;
-  inventory: InventoryItem[];
 }
 
 export interface InventoryItem {
