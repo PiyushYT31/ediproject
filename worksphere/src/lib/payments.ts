@@ -27,7 +27,7 @@ export async function initiateUPIPayment(
   // Simulated UPI payment flow
   // In production, this would use a library or a deep link to a UPI app
   console.log(`Initiating UPI payment of ₹${amount} to ${payeeVPA} (${payeeName})`);
-  
+
   return new Promise((resolve) => {
     setTimeout(() => {
       const isSuccess = Math.random() > 0.1; // 90% success rate
@@ -51,6 +51,6 @@ export function generateUPIDeepLink(
     cu: "INR",
     tn: transactionNote,
   });
-  
+
   return `upi://pay?${params.toString()}`;
 }
